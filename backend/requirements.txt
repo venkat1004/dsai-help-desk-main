@@ -5,3 +5,5 @@ faiss-cpu
 python-dotenv
 numpy
 groq
+mysql-connector-python
+python-docx
