@@ -3,30 +3,48 @@ import re
 import numpy as np
 import faiss
 import docx
+import torch
 from sentence_transformers import SentenceTransformer
+
+# -------- SET HUGGINGFACE CACHE TO SAFE LOCATION --------
+os.environ["HF_HOME"] = "/tmp/huggingface"
+os.environ["TRANSFORMERS_CACHE"] = "/tmp/huggingface"
 
 # -------- YOUR SINGLE KB FILE --------
 KB_FILE = r"C:\Users\venkatsai.reddy\Downloads\KB File List.docx"
 # -------------------------------------
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
-
+# -------- GLOBALS --------
+_model = None
 faiss_index = None
 metadata_store = []
 
-# --------- READ DOCX SAFELY ----------
+# -------- LOAD LIGHTWEIGHT MODEL LAZILY --------
+def get_model():
+    global _model
+    if _model is None:
+        torch.set_grad_enabled(False)
+        _model = SentenceTransformer(
+            "sentence-transformers/paraphrase-MiniLM-L3-v2",
+            device="cpu"
+        )
+        _model.max_seq_length = 256
+        print("✅ Lightweight embedding model loaded")
+    return _model
+
+# -------- READ DOCX SAFELY ----------
 def read_docx_text(path):
     doc = docx.Document(path)
     text = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
     return text
-# -------------------------------------
 
+# -------- EXTRACT METADATA ----------
 def extract_metadata_from_chunk(chunk):
     meta = {"id": None, "title": None, "version": None}
 
-    id_match = re.search(r"id:\s*(.+)", chunk)
-    title_match = re.search(r"title:\s*(.+)", chunk)
-    version_match = re.search(r"version:\s*(.+)", chunk)
+    id_match = re.search(r"id:\s*(.+)", chunk, re.IGNORECASE)
+    title_match = re.search(r"title:\s*(.+)", chunk, re.IGNORECASE)
+    version_match = re.search(r"version:\s*(.+)", chunk, re.IGNORECASE)
 
     if id_match:
         meta["id"] = id_match.group(1).strip()
@@ -37,17 +55,19 @@ def extract_metadata_from_chunk(chunk):
 
     return meta
 
+# -------- CHUNK TEXT ----------
 def chunk_text(text, chunk_size=600):
     words = text.split()
     return [" ".join(words[i:i+chunk_size]) for i in range(0, len(words), chunk_size)]
 
+# -------- LOAD KB ----------
 def load_kb():
     global faiss_index, metadata_store
 
     print("📚 Loading single KB file:", KB_FILE)
 
     if not os.path.exists(KB_FILE):
-        print("⚠️ KB file not found! RAG will be empty.")
+        print("⚠️ KB file not found")
         faiss_index = None
         metadata_store = []
         return
@@ -55,20 +75,26 @@ def load_kb():
     full_text = read_docx_text(KB_FILE).strip()
 
     if not full_text:
-        print("⚠️ WARNING: Docx file produced EMPTY TEXT!")
-        print("👉 Your .docx is not readable as plain text.")
-        print("Backend will start but FAISS will be empty.")
+        print("⚠️ Empty KB file")
         faiss_index = None
         metadata_store = []
         return
 
     chunks = chunk_text(full_text)
 
+    model = get_model()
+
     all_embeddings = []
     metadata_store = []
 
     for i, chunk in enumerate(chunks):
-        embedding = model.encode(chunk)
+
+        embedding = model.encode(
+            chunk,
+            batch_size=1,
+            convert_to_numpy=True,
+            show_progress_bar=False
+        )
 
         meta = extract_metadata_from_chunk(chunk)
 
@@ -88,27 +114,33 @@ def load_kb():
     faiss_index = faiss.IndexFlatL2(dim)
     faiss_index.add(embeddings)
 
-    print(f"✅ FAISS loaded {len(chunks)} chunks from single KB file.")
+    print(f"✅ FAISS loaded {len(chunks)} chunks")
 
+# -------- SEARCH KB ----------
 def search_kb(query, top_k=3):
-    global faiss_index, metadata_store, model
+    global faiss_index, metadata_store
 
-    # Lazy load model and KB
     if faiss_index is None or not metadata_store:
         print("Loading KB for first time...")
         load_kb()
 
-        # If still empty after loading, return empty safely
-        if faiss_index is None or not metadata_store:
-            print("KB failed to load.")
+        if faiss_index is None:
             return []
 
-    query_emb = model.encode(query).astype("float32").reshape(1, -1)
+    model = get_model()
+
+    query_emb = model.encode(
+        query,
+        batch_size=1,
+        convert_to_numpy=True,
+        show_progress_bar=False
+    ).astype("float32").reshape(1, -1)
 
     distances, indices = faiss_index.search(query_emb, top_k)
 
     results = []
     for idx in indices[0]:
-        results.append(metadata_store[idx])
+        if idx < len(metadata_store):
+            results.append(metadata_store[idx])
 
     return results

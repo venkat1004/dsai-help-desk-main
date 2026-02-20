@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Body
 from rag import load_kb, search_kb
-from groq import Groqfrom 
+from groq import Groq
 import json
 import uuid
 import os
@@ -13,13 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 # ---------------------------------------------------------
 # GROQ CLIENT
@@ -222,6 +216,35 @@ If user mentions ANY of the above, you MUST treat it as IN-SCOPE.
 NEVER classify VM crash, lab crash, or environment crash as out-of-scope.
 
 --------------------------------------------------
+--------------------------------------------------
+RULE 1B — MANDATORY ESCALATION FOR CRITICAL FAILURES
+--------------------------------------------------
+
+If the user reports ANY critical infrastructure failure such as:
+
+- vm crash or vm crashed
+- vm not responding or vm froze
+- lab crash or lab not starting
+- container crash or container failure
+- kernel panic or environment failure
+
+You MUST:
+
+- Set "needsEscalation": true
+- Set "tier": "TIER_3"
+- Set "severity": "CRITICAL"
+
+You MUST generate the answer using ONLY the provided KB CONTENT.
+
+If KB CONTENT contains recovery steps, use them.
+
+If KB CONTENT does NOT contain recovery steps, clearly say the KB does not contain recovery instructions and escalation is required.
+
+Do NOT use generic answers.
+
+Never set needsEscalation=false for these critical failures.
+
+--------------------------------------------------
 RULE 2 — SECURITY POLICY BLOCK
 --------------------------------------------------
 
@@ -327,7 +350,7 @@ USER QUESTION
         model="openai/gpt-oss-120b",
         messages=messages,
         temperature=0,
-        max_completion_tokens=512,
+        max_completion_tokens=1000,
     )
 
     raw_output = completion.choices[0].message.content
@@ -361,38 +384,34 @@ USER QUESTION
         print("JSON PARSE ERROR:", str(e))
         print("RAW OUTPUT:", raw_output)
 
-        return {
-            "answer": raw_output,
-            "kbReferences": [],
-            "confidence": 0.5,
-            "tier": "TIER_2",
-            "severity": "HIGH",
-            "needsEscalation": False,
-            "guardrail": {
-                "blocked": False,
-                "reason": "parse_failed_raw_return"
-            }
-        }
+        msg_lower = user_message.lower()
 
-def apply_escalation_rules(message: str, tier: str, severity: str, needsEscalation: bool):
-
-    msg = message.lower()
-
-    critical_keywords = [
+        critical_keywords = [
         "vm crash",
         "vm crashed",
-        "vm froze",
+        "kernel crash",
         "kernel panic",
         "lab crash",
-        "environment failure",
-        "container failure"
+        "container crash",
+        "environment failure"
     ]
 
-    for keyword in critical_keywords:
-        if keyword in msg:
-            return True, "TIER_3", "CRITICAL"
+    is_critical = any(keyword in msg_lower for keyword in critical_keywords)
 
-    return needsEscalation, tier, severity
+    return {
+        "answer": raw_output,
+        "kbReferences": [],
+        "confidence": 0.5,
+        "tier": "TIER_3" if is_critical else "TIER_2",
+        "severity": "CRITICAL" if is_critical else "HIGH",
+        "needsEscalation": True if is_critical else False,
+        "guardrail": {
+            "blocked": False,
+            "reason": "parse_failed_raw_return"
+        }
+    }
+
+
 
         
 
@@ -426,15 +445,6 @@ def chat(body: dict = Body(...)):
     severity = llm_output.get("severity")
     confidence = llm_output.get("confidence")
     needsEscalation = llm_output.get("needsEscalation")
-
-    needsEscalation, tier, severity = apply_escalation_rules(
-    message,
-    tier,
-    severity,
-    needsEscalation
-)
-
-
     guardrail_info = llm_output.get("guardrail", {})
     blocked = guardrail_info.get("blocked", False)
 
