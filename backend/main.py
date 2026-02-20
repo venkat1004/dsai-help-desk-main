@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Body
 from rag import load_kb, search_kb
-from groq import Groq
-
+from groq import Groqfrom 
 import json
 import uuid
 import os
@@ -14,6 +13,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ---------------------------------------------------------
 # GROQ CLIENT
@@ -168,12 +174,7 @@ def save_metric(session_id, tier, severity, blocked, escalated):
 
 # ---------------------------------------------------------
 # STARTUP
-# ---------------------------------------------------------
-@app.on_event("startup")
-def startup():
-    print("Backend starting...")
-    load_kb()
-    print("KB loaded.")
+# --------------------------------------------------------
 
 # ---------------------------------------------------------
 # HEALTH CHECK

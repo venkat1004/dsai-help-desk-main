@@ -91,11 +91,17 @@ def load_kb():
     print(f"✅ FAISS loaded {len(chunks)} chunks from single KB file.")
 
 def search_kb(query, top_k=3):
-    global faiss_index, metadata_store
+    global faiss_index, metadata_store, model
 
+    # Lazy load model and KB
     if faiss_index is None or not metadata_store:
-        print("⚠️ FAISS index is empty.")
-        return []
+        print("Loading KB for first time...")
+        load_kb()
+
+        # If still empty after loading, return empty safely
+        if faiss_index is None or not metadata_store:
+            print("KB failed to load.")
+            return []
 
     query_emb = model.encode(query).astype("float32").reshape(1, -1)
 
