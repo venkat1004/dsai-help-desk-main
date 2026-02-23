@@ -300,6 +300,11 @@ RULE 4 — KB USAGE
 
 If KB CONTENT contains recovery steps, you MUST use them.
 
+You MUST include the KB document "id" values used
+inside the "kbReferences" array.
+
+Do not leave kbReferences empty if KB CONTENT was used.
+
 NEVER say KB missing if KB CONTENT exists.
 
 --------------------------------------------------
@@ -324,7 +329,7 @@ Return this exact structure:
 KB CONTENT
 --------------------------------------------------
 
-{json.dumps(kb_chunks, indent=2)}
+{kb_text}
 
 --------------------------------------------------
 USER QUESTION
@@ -440,7 +445,14 @@ def chat(body: dict = Body(...)):
     history = load_session_history(session_id)
 
     results = search_kb(message)
-    kb_chunks = [r["text"] for r in results[:2]] if results else []
+
+    kb_chunks = [
+    {
+        "id": r.get("id"),   # make sure search_kb returns this
+        "text": r["text"]
+    }
+    for r in results[:5]
+    ] if results else []
 
     # save user message
     save_message(session_id, "user", message)
