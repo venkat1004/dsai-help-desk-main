@@ -217,32 +217,38 @@ NEVER classify VM crash, lab crash, or environment crash as out-of-scope.
 
 --------------------------------------------------
 --------------------------------------------------
-RULE 1B — MANDATORY ESCALATION FOR CRITICAL FAILURES
+--------------------------------------------------
+RULE 1B — ESCALATION MUST FOLLOW KB POLICY
 --------------------------------------------------
 
-If the user reports ANY critical infrastructure failure such as:
+Escalation decisions MUST follow the Tiering, Escalation, and SLA Policy in the KB.
 
-- vm crash or vm crashed
-- vm not responding or vm froze
-- lab crash or lab not starting
-- container crash or container failure
-- kernel panic or environment failure
+Do NOT automatically escalate VM crashes.
 
-You MUST:
+Follow this logic:
 
-- Set "needsEscalation": true
-- Set "tier": "TIER_3"
-- Set "severity": "CRITICAL"
+1. If KB CONTENT provides documented recovery steps
+   (e.g., relaunch lab, reconnect, check snapshot),
+   you MUST:
+      - Provide those steps
+      - Set "needsEscalation": false
+      - Set "tier": "TIER_0"
+      - Set severity appropriately (usually MEDIUM)
 
-You MUST generate the answer using ONLY the provided KB CONTENT.
+2. Escalate to TIER_2 only if:
+      - The issue persists after documented recovery steps
+      - Multiple users are affected
+      - The KB explicitly instructs escalation
 
-If KB CONTENT contains recovery steps, use them.
+3. Escalate to TIER_3 only if:
+      - Kernel panic is reported
+      - Systemic outage is indicated
+      - Deep platform/image bug is described
+      - The KB explicitly requires Tier 3
 
-If KB CONTENT does NOT contain recovery steps, clearly say the KB does not contain recovery instructions and escalation is required.
+Never escalate solely because the words "vm crash" appear.
 
-Do NOT use generic answers.
-
-Never set needsEscalation=false for these critical failures.
+Escalation must be justified by KB policy.
 
 --------------------------------------------------
 RULE 2 — SECURITY POLICY BLOCK
