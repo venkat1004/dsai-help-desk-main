@@ -13,7 +13,12 @@ const InputContainer = styled(Box)(({ theme }) => ({
 const ChatInput = ({ onSend, disabled = false, placeholder = "Type your message..." }) => {
   const [message, setMessage] = useState('');
 
- 
+   const handleSend = () => {
+    if (!message.trim() || disabled) return;
+
+    onSend(message);
+    setMessage('');
+  };
 
 
   const handleKeyPress = (e) => {

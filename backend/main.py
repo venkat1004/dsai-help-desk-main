@@ -6,6 +6,7 @@ import uuid
 import os
 import mysql.connector
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
 # ---------------------------------------------------------
 # LOAD ENV VARIABLES
@@ -13,6 +14,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ---------------------------------------------------------
@@ -448,7 +457,7 @@ def chat(body: dict = Body(...)):
 
     kb_chunks = [
     {
-        "id": r.get("id"),   # make sure search_kb returns this
+        "id": r.get("kb_id"),   # make sure search_kb returns this
         "text": r["text"]
     }
     for r in results[:5]
