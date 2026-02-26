@@ -34,7 +34,7 @@ const TicketDashboard = () => {
       try {
         setLoading(true);
 
-        const response = await fetch("http://127.0.0.1:8000/api/tickets");
+        const response = await fetch("https://dsai-help-desk-main.onrender.com/api/tickets");
 
         if (!response.ok) {
           throw new Error("Failed to fetch tickets");
