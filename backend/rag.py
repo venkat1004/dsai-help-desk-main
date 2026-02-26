@@ -6,20 +6,17 @@ import docx
 import torch
 from sentence_transformers import SentenceTransformer
 
-# -------- SET HUGGINGFACE CACHE TO SAFE LOCATION --------
 os.environ["HF_HOME"] = "/tmp/huggingface"
 os.environ["TRANSFORMERS_CACHE"] = "/tmp/huggingface"
 
-# -------- YOUR SINGLE KB FILE --------
-KB_FILE = r"C:\Users\venkatsai.reddy\Downloads\KB File List.docx"
-# -------------------------------------
 
-# -------- GLOBALS --------
+KB_FILE = r"C:\Users\venkatsai.reddy\Downloads\KB File List.docx"
+
 _model = None
 faiss_index = None
 metadata_store = []
 
-# -------- LOAD LIGHTWEIGHT MODEL LAZILY --------
+
 def get_model():
     global _model
     if _model is None:
@@ -55,12 +52,11 @@ def extract_metadata_from_chunk(chunk):
 
     return meta
 
-# -------- CHUNK TEXT ----------
+
 def chunk_text(text, chunk_size=600):
     words = text.split()
     return [" ".join(words[i:i+chunk_size]) for i in range(0, len(words), chunk_size)]
 
-# -------- LOAD KB ----------
 def load_kb():
     global faiss_index, metadata_store
 

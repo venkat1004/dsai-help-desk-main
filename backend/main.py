@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Body
+from dotenv import load_dotenv
 from rag import load_kb, search_kb
 from groq import Groq
 import json
@@ -8,9 +9,7 @@ import mysql.connector
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 
-# ---------------------------------------------------------
-# LOAD ENV VARIABLES
-# ---------------------------------------------------------
+
 load_dotenv()
 
 app = FastAPI()
@@ -24,16 +23,11 @@ app.add_middleware(
 )
 
 
-# ---------------------------------------------------------
-# GROQ CLIENT
-# ---------------------------------------------------------
 client = Groq(
     api_key=os.getenv("GROQ_API_KEY")
 )
 
-# ---------------------------------------------------------
-# MYSQL CONNECTION
-# ---------------------------------------------------------
+
 def get_db():
     return mysql.connector.connect(
         host=os.getenv("MYSQL_HOST"),
@@ -43,9 +37,7 @@ def get_db():
         database=os.getenv("MYSQL_DATABASE")
     )
 
-# ---------------------------------------------------------
-# CREATE SESSION IF NOT EXISTS
-# ---------------------------------------------------------
+
 def create_session_if_not_exists(session_id):
 
     db = get_db()
@@ -61,9 +53,7 @@ def create_session_if_not_exists(session_id):
     cursor.close()
     db.close()
 
-# ---------------------------------------------------------
-# LOAD SESSION HISTORY
-# ---------------------------------------------------------
+
 def load_session_history(session_id):
 
     db = get_db()
@@ -92,9 +82,7 @@ def load_session_history(session_id):
 
     return history
 
-# ---------------------------------------------------------
-# SAVE MESSAGE
-# ---------------------------------------------------------
+
 def save_message(session_id, role, content, tier=None, severity=None, confidence=None):
 
     db = get_db()
@@ -111,9 +99,7 @@ def save_message(session_id, role, content, tier=None, severity=None, confidence
     cursor.close()
     db.close()
 
-# ---------------------------------------------------------
-# SAVE TICKET
-# ---------------------------------------------------------
+
 def save_ticket(ticket_id, session_id, message, severity, tier):
 
     db = get_db()
@@ -130,12 +116,10 @@ def save_ticket(ticket_id, session_id, message, severity, tier):
     cursor.close()
     db.close()
 
-# ---------------------------------------------------------
-# SAVE GUARDRAIL EVENT
-# ---------------------------------------------------------
+
 def save_guardrail_event(session_id, message, reason):
 
-    #print("INSERTING GUARDRAIL EVENT:", session_id, message, reason)
+    
 
     db = get_db()
     cursor = db.cursor()
@@ -148,16 +132,13 @@ def save_guardrail_event(session_id, message, reason):
 
     db.commit()
 
-    #print("INSERT SUCCESS")
+   
 
     cursor.close()
     db.close()
 
 
-# ---------------------------------------------------------
-# METRICS STORAGE (IN MEMORY)
-# ---------------------------------------------------------
-# ---------------------------------------------------------
+
 def save_metric(session_id, tier, severity, blocked, escalated):
 
     db = get_db()
@@ -175,23 +156,12 @@ def save_metric(session_id, tier, severity, blocked, escalated):
     db.close()
 
 
-# ---------------------------------------------------------
-# STARTUP
-# --------------------------------------------------------
 
-# ---------------------------------------------------------
-# HEALTH CHECK
-# ---------------------------------------------------------
 @app.get("/")
 def root():
     return {"status": "backend is running"}
-# ---------------------------------------------------------
-# LOAD SESSION HISTORY FROM MYSQL
-# ---------------------------------------------------------
 
-# ---------------------------------------------------------
-# LLM CALL FUNCTION WITH HISTORY
-# ---------------------------------------------------------
+#
 def call_groq_cleaner(user_message: str, kb_chunks: list, history: list):
 
     kb_text = json.dumps(kb_chunks, indent=2)
@@ -435,9 +405,6 @@ USER QUESTION
 
         
 
-# ---------------------------------------------------------
-# CHAT ENDPOINT
-# ---------------------------------------------------------
 @app.post("/api/chat")
 def chat(body: dict = Body(...)):
 
@@ -537,9 +504,7 @@ def chat(body: dict = Body(...)):
     }
 
 
-# ---------------------------------------------------------
-# GET ALL TICKETS
-# ---------------------------------------------------------
+
 @app.get("/api/tickets")
 def get_all_tickets():
 
@@ -585,9 +550,7 @@ def get_ticket(ticket_id: str):
 
     return ticket
 
-# ---------------------------------------------------------
-# METRICS SUMMARY
-# ---------------------------------------------------------
+
 @app.get("/api/metrics/summary")
 def metrics_summary():
 
