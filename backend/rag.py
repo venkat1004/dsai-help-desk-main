@@ -1,22 +1,20 @@
 import os
-import re
-import numpy as np
+import pickle
 import faiss
-import docx
 import torch
+import numpy as np
 from sentence_transformers import SentenceTransformer
 
+# Optional cache path for Render
 os.environ["HF_HOME"] = "/tmp/huggingface"
 os.environ["TRANSFORMERS_CACHE"] = "/tmp/huggingface"
 
-
-KB_FILE = r"C:\Users\venkatsai.reddy\Downloads\KB File List.docx"
-
 _model = None
 faiss_index = None
-metadata_store = []
+metadata_store = None
 
 
+# -------- LOAD EMBEDDING MODEL (FOR QUERY ONLY) ----------
 def get_model():
     global _model
     if _model is None:
@@ -26,110 +24,45 @@ def get_model():
             device="cpu"
         )
         _model.max_seq_length = 256
-        print("✅ Lightweight embedding model loaded")
+        print("✅ Embedding model loaded (query only)")
     return _model
 
-# -------- READ DOCX SAFELY ----------
-def read_docx_text(path):
-    doc = docx.Document(path)
-    text = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
-    return text
 
-# -------- EXTRACT METADATA ----------
-def extract_metadata_from_chunk(chunk):
-    meta = {"id": None, "title": None, "version": None}
-
-    id_match = re.search(r"id:\s*(.+)", chunk, re.IGNORECASE)
-    title_match = re.search(r"title:\s*(.+)", chunk, re.IGNORECASE)
-    version_match = re.search(r"version:\s*(.+)", chunk, re.IGNORECASE)
-
-    if id_match:
-        meta["id"] = id_match.group(1).strip()
-    if title_match:
-        meta["title"] = title_match.group(1).strip()
-    if version_match:
-        meta["version"] = version_match.group(1).strip()
-
-    return meta
-
-
-def chunk_text(text, chunk_size=600):
-    words = text.split()
-    return [" ".join(words[i:i+chunk_size]) for i in range(0, len(words), chunk_size)]
-
+# -------- LOAD PREBUILT FAISS INDEX ----------
 def load_kb():
     global faiss_index, metadata_store
 
-    print("📚 Loading single KB file:", KB_FILE)
-
-    if not os.path.exists(KB_FILE):
-        print("⚠️ KB file not found")
-        faiss_index = None
-        metadata_store = []
+    if faiss_index is not None:
         return
 
-    full_text = read_docx_text(KB_FILE).strip()
+    print("📦 Loading prebuilt FAISS index...")
 
-    if not full_text:
-        print("⚠️ Empty KB file")
-        faiss_index = None
-        metadata_store = []
-        return
+    if not os.path.exists("faiss.index"):
+        raise FileNotFoundError("faiss.index not found")
 
-    chunks = chunk_text(full_text)
+    if not os.path.exists("metadata.pkl"):
+        raise FileNotFoundError("metadata.pkl not found")
 
-    model = get_model()
+    faiss_index = faiss.read_index("faiss.index")
 
-    all_embeddings = []
-    metadata_store = []
+    with open("metadata.pkl", "rb") as f:
+        metadata_store = pickle.load(f)
 
-    for i, chunk in enumerate(chunks):
+    print(f"✅ Loaded {len(metadata_store)} KB chunks")
 
-        embedding = model.encode(
-            chunk,
-            batch_size=1,
-            convert_to_numpy=True,
-            show_progress_bar=False
-        )
-
-        meta = extract_metadata_from_chunk(chunk)
-
-        metadata_store.append({
-            "source_file": os.path.basename(KB_FILE),
-            "kb_id": meta.get("id") or f"chunk-{i}",
-            "title": meta.get("title") or "KB Chunk",
-            "version": meta.get("version") or "unknown",
-            "text": chunk
-        })
-
-        all_embeddings.append(embedding)
-
-    embeddings = np.array(all_embeddings).astype("float32")
-
-    dim = embeddings.shape[1]
-    faiss_index = faiss.IndexFlatL2(dim)
-    faiss_index.add(embeddings)
-
-    print(f"✅ FAISS loaded {len(chunks)} chunks")
 
 # -------- SEARCH KB ----------
 def search_kb(query, top_k=3):
     global faiss_index, metadata_store
 
-    if faiss_index is None or not metadata_store:
-        print("Loading KB for first time...")
+    if faiss_index is None:
         load_kb()
-
-        if faiss_index is None:
-            return []
 
     model = get_model()
 
     query_emb = model.encode(
         query,
-        batch_size=1,
-        convert_to_numpy=True,
-        show_progress_bar=False
+        convert_to_numpy=True
     ).astype("float32").reshape(1, -1)
 
     distances, indices = faiss_index.search(query_emb, top_k)

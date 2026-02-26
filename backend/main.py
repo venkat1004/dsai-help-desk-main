@@ -13,11 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 app = FastAPI()
+# Load FAISS index at startup
+load_kb()
 
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://https://dsai-help-desk-main.vercel.app"
+    "https://dsai-help-desk-main.vercel.app"
 ]
 
 app.add_middleware(
